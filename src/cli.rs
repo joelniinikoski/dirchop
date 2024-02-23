@@ -1,4 +1,4 @@
-pub use clap::{error::ErrorKind, Command, command, Arg, ArgMatches};
+pub use clap::{ArgAction, Command, command, Arg};
 
 pub fn cli_command() -> Command {
     command!()
@@ -22,11 +22,14 @@ pub fn cli_command() -> Command {
     .subcommand(
         Command::new("glue")
         .about("Glue created chunk-files into the original file")
-        // .arg(
-        //     Arg::new("DELETE_CHUNKS")
-        //     .help("Option to delete tar chunks after glue")
-        //     .short('d')
-        // )
+        .arg(
+            Arg::new("DELETE_CHUNKS")
+            .help("Option to delete tar chunks after glue")
+            .short('d')
+            .action(
+                ArgAction::SetTrue
+            )
+        )
     )
 }
 

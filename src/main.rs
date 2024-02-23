@@ -7,7 +7,7 @@ use chopglue::*;
 use cli::*;
 
 fn main() -> Result<(), std::io::Error>{
-    let mut command = cli_command();
+    let command = cli_command();
     let matches = command.get_matches();
 
     match matches.subcommand() {
@@ -17,16 +17,12 @@ fn main() -> Result<(), std::io::Error>{
                 _ => 0,
             };
             match sub_matches.get_one::<String>("TARGET") {
-                Some(t) => into_tar(t.as_str()),
+                Some(t) => into_tar(t.as_str(), megabytes),
                 _ => (),
             }
         },
         Some(("glue", sub_matches)) => {
-            // let delchunks = match sub_matches.get_one::<String>("DELETE_CHUNKS") {
-            //     Some(t) => true,
-            //     _ => false,
-            // };
-            glue();
+            glue(sub_matches.get_flag("DELETE_CHUNKS"));
             into_file();
         }
         _ => (),
