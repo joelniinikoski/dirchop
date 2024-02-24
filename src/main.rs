@@ -14,17 +14,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
     match matches.subcommand() {
         Some(("chop", sub_matches)) => {
             // panic should never happen as usize is parsed before argmatching
-            let megabytes = sub_matches.get_one::<usize>("MEGABYTES").unwrap().to_owned();
-            if megabytes == 0 {
-                return Err(Box::new(Error::new(ErrorKind::InvalidInput, "MEGABYTES must be larger than 0")));
+            // and .required(true) in cli
+            let kilobytes = sub_matches.get_one::<usize>("KILOBYTES").unwrap().to_owned();
+            if kilobytes == 0 {
+                return Err(Box::new(Error::new(ErrorKind::InvalidInput, "KILOBYTES must be larger than 0")));
             }
             // panic should never happen on unwrap: TARGET exists
             // before argmatching because .required(true) in cli
-            into_tar(sub_matches.get_one::<String>("TARGET").unwrap().as_str(), megabytes)?;
+            if let Err(e) = 
+                into_tar(sub_matches.get_one::<String>("TARGET").unwrap().as_str(), kilobytes) {
+                check_temp_tar("dirchop_temparchive.tar", e)?
+            }
         },
         Some(("glue", sub_matches)) => {
-            glue(sub_matches.get_flag("DELETE_CHUNKS"))?;
-            into_file()?;
+            if let Err(e) = glue(sub_matches.get_flag("CLEAN_CHUNKS")) {
+                check_temp_tar("dirchop_tempfinished.tar", e)?
+            }
         }
         _ => (),
     };

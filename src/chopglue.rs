@@ -5,17 +5,20 @@ use std::error::Error;
 use std::io::{Read, BufWriter, Write};
 pub use std::path::Path;
 
-pub fn into_tar(path: &str, chunksize: usize) -> Result<(), Box<dyn Error>> {
+pub fn into_tar(path: &str, kilobytes: usize) -> Result<(), Box<dyn Error>> {
     // temporary archive that is used for splitting into chunks, then deleted.
     let temp_path = "dirchop_temparchive.tar";
     let tarfile = File::create(temp_path)?;
     let mut builder = tar::Builder::new(tarfile);
-    builder.append_path_with_name(path, path)?;
+    match std::fs::metadata(path)?.is_dir() {
+        true => builder.append_dir_all(path, path)?,
+        false => builder.append_path_with_name(path, path)?,
+    }
     builder.finish()?;
 
     // builder.finish() closes file; open temparchive again for splitting
     let mut splitfile = File::open(temp_path)?;
-    let chunksize = chunksize * 1000;
+    let chunksize = kilobytes * 1000;
     split(&mut splitfile, chunksize)?;
     std::fs::remove_file(temp_path)?;
     Ok(())
@@ -47,6 +50,7 @@ pub fn glue(d: bool) -> Result<(), Box<dyn Error>> {
     for result in read_dir("./")? {
         match result {
             Ok(entry) => if entry.file_name().len() >= 14 && &entry.file_name().to_str().unwrap()[0..13] == "dirchop_chunk" {
+                // we don't process chunks here because we want to retain their order
                 chunk_amount += 1;
             },
             Err(_) => (),
@@ -66,6 +70,7 @@ pub fn glue(d: bool) -> Result<(), Box<dyn Error>> {
     // write wholebuffer into finished tar file
     let mut writer = BufWriter::new(File::create("dirchop_tempfinished.tar")?);
     writer.write_all(&wholebuf)?;
+    into_file()?;
     Ok(())
 }
 
@@ -81,4 +86,11 @@ pub fn into_file() -> Result<(), Box<dyn Error>> {
     archive.unpack("./dirchop_target")?;
     std::fs::remove_file(&tempfinishedpath)?;
     Ok(())
+}
+
+pub fn check_temp_tar(path: &str, e: Box<dyn Error>) -> Result<(), Box<dyn Error>> {
+    if Path::new(path).exists() {
+        std::fs::remove_file(path)?;
+    }
+    Err(e)
 }
