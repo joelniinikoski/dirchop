@@ -1,5 +1,6 @@
 pub use clap::{ArgAction, Command, command, Arg};
 
+//Custom error handling not required; clap handles commands
 pub fn cli_command() -> Command {
     command!()
     .about("This application can split a file or directory into smaller tar-pieces and later combine pieces made by the program into the original file or directory.")
@@ -32,7 +33,3 @@ pub fn cli_command() -> Command {
         )
     )
 }
-
-// pub fn chop_matches(matches: &ArgMatches) -> (String, u64) {
-
-// }
