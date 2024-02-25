@@ -1,9 +1,9 @@
 //! This module creates tar files and splits them
 
 pub use std::fs::{File, create_dir, read_dir};
-use std::error::Error;
 use std::io::{Read, BufWriter, Write};
 pub use std::path::Path;
+pub use anyhow::{Result, anyhow};
 
 pub mod paths {
     pub static TEMP: &str = "dirchop_temparchive.tar";
@@ -11,7 +11,7 @@ pub mod paths {
     pub static CHUNK: &str = "dirchop_chunk";
 }
 
-pub fn into_tar(path: &str, megabytes: usize) -> Result<(), Box<dyn Error>> {
+pub fn into_tar(path: &str, megabytes: usize) -> Result<()> {
     // temporary archive that is used for splitting into chunks, then deleted.
     let tarfile = File::create(paths::TEMP)?;
     let mut builder = tar::Builder::new(tarfile);
@@ -23,13 +23,16 @@ pub fn into_tar(path: &str, megabytes: usize) -> Result<(), Box<dyn Error>> {
 
     // builder.finish() closes file; open temparchive again for splitting
     let mut splitfile = File::open(paths::TEMP)?;
-    let chunksize = megabytes * 1000000;
+    let chunksize = match megabytes.checked_mul(1000000) {
+        Some(n) => n,
+        None => return Err(anyhow!(format!("<{}>: number too large",crate::options::MEGABYTES)))
+    };
     split(&mut splitfile, chunksize)?;
     std::fs::remove_file(paths::TEMP)?;
     Ok(())
 }
 
-fn split(file: &mut File, chunksize: usize) -> Result<(), Box<dyn Error>> {
+fn split(file: &mut File, chunksize: usize) -> Result<()> {
     let mut buf = vec![];
     file.read_to_end(&mut buf)?;
     let chunks = buf.len()/chunksize;
@@ -49,7 +52,7 @@ fn split(file: &mut File, chunksize: usize) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn glue(d: bool) -> Result<(), Box<dyn Error>> {
+pub fn glue(d: bool) -> Result<()> {
     let mut chunk_amount = 0;
     let mut wholebuf = vec![];
     for result in read_dir("./")? {
@@ -80,7 +83,7 @@ pub fn glue(d: bool) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn into_file() -> Result<(), Box<dyn Error>> {
+fn into_file() -> Result<()> {
     // create temporary archive object from finished tar file
     let tarfile =  File::open(paths::TEMP_FIN)?;
     let mut archive = tar::Archive::new(tarfile);
@@ -93,7 +96,7 @@ fn into_file() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn check_temp_tar(path: &str, e: Box<dyn Error>) -> Result<(), Box<dyn Error>> {
+pub fn check_temp_tar(path: &str, e: anyhow::Error) -> Result<()> {
     if Path::new(path).exists() {
         std::fs::remove_file(path)?;
     }

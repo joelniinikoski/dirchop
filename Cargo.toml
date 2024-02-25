@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 tar = "0.4.40"
 clap = { version = "4.5.1", features = ["cargo"] }
+anyhow = "1.0.80"

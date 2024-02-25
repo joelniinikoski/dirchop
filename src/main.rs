@@ -5,9 +5,8 @@ mod chopglue;
 
 use chopglue::*;
 use cli::*;
-use std::io::{Error, ErrorKind};
 
-fn main() -> Result<(), Box<dyn std::error::Error>>{
+fn main() -> Result<()> {
     let command = cli_command();
     let matches = command.get_matches();
 
@@ -17,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
             // and .required(true) in cli
             let kilobytes = sub_matches.get_one::<usize>(options::MEGABYTES).unwrap().to_owned();
             if kilobytes == 0 {
-                return Err(Box::new(Error::new(ErrorKind::InvalidInput, "Megabytes must be larger than 0")));
+                return Err(anyhow!(format!("<{}>: must be greater than zero", options::MEGABYTES)))
             }
             // panic should never happen on unwrap: TARGET exists
             // before argmatching because .required(true) in cli
