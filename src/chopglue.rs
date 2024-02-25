@@ -3,21 +3,22 @@
 pub use std::fs::{File, create_dir, read_dir};
 use std::io::{Read, BufWriter, Write};
 pub use std::path::Path;
-pub use anyhow::{Result, anyhow};
+use anyhow::{Result, bail};
 
 pub mod paths {
-    pub static TEMP: &str = "dirchop_temparchive.tar";
-    pub static TEMP_FIN: &str = "dirchop_tempfinished.tar";
-    pub static CHUNK: &str = "dirchop_chunk";
+    pub static TEMP: &str = "dirchop-temparchive.tar";
+    pub static TEMP_FIN: &str = "dirchop-tempfinished.tar";
+    pub static CHUNK: &str = "dirchop-chunk";
+    pub static DIRCHOP_TARGET: &str = "./dirchop-target";
 }
 
-pub fn into_tar(path: &str, megabytes: usize) -> Result<()> {
+pub fn chop(path: &str, megabytes: usize) -> Result<()> {
     // temporary archive that is used for splitting into chunks, then deleted.
     let tarfile = File::create(paths::TEMP)?;
     let mut builder = tar::Builder::new(tarfile);
     match std::fs::metadata(path)?.is_dir() {
         true => builder.append_dir_all(path, path)?,
-        false => builder.append_path_with_name(path, path)?,
+        false => builder.append_path_with_name(path, path)?
     }
     builder.finish()?;
 
@@ -25,7 +26,7 @@ pub fn into_tar(path: &str, megabytes: usize) -> Result<()> {
     let mut splitfile = File::open(paths::TEMP)?;
     let chunksize = match megabytes.checked_mul(1000000) {
         Some(n) => n,
-        None => return Err(anyhow!(format!("<{}>: number too large",crate::options::MEGABYTES)))
+        None => bail!(format!("<{}>: number too large",crate::cli::options::MEGABYTES))
     };
     split(&mut splitfile, chunksize)?;
     std::fs::remove_file(paths::TEMP)?;
@@ -40,7 +41,8 @@ fn split(file: &mut File, chunksize: usize) -> Result<()> {
     
     // create chunks from temparchive
     for chunk in 0..chunks+1 {
-        let mut writer = BufWriter::new(File::create(format!("{}{}.tar",paths::CHUNK,chunk))?);
+        let mut writer = BufWriter::new(
+            File::create(format!("{}{}.tar",paths::CHUNK,chunk))?);
         let end = if !(chunk == chunks) {chunksize} else {remainder};
         match writer.write_all(&buf[chunk*chunksize..(chunk*chunksize+end)]) {
             Ok(_) => (),
@@ -79,6 +81,7 @@ pub fn glue(d: bool) -> Result<()> {
     // write wholebuffer into finished tar file
     let mut writer = BufWriter::new(File::create(paths::TEMP_FIN)?);
     writer.write_all(&wholebuf)?;
+    writer.flush()?;
     into_file()?;
     Ok(())
 }
@@ -87,11 +90,11 @@ fn into_file() -> Result<()> {
     // create temporary archive object from finished tar file
     let tarfile =  File::open(paths::TEMP_FIN)?;
     let mut archive = tar::Archive::new(tarfile);
-    if !Path::new("./dirchop_target").exists() {
-        create_dir("./dirchop_target")?;
+    if !Path::new(paths::DIRCHOP_TARGET).exists() {
+        create_dir(paths::DIRCHOP_TARGET)?;
     }
     // unpack into target
-    archive.unpack("./dirchop_target")?;
+    archive.unpack(paths::DIRCHOP_TARGET)?;
     std::fs::remove_file(paths::TEMP_FIN)?;
     Ok(())
 }

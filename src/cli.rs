@@ -23,7 +23,8 @@ pub fn cli_command() -> Command {
     .subcommand(
         Command::new(commands::CHOP)
         .about("Create tar file of target and split 
-        it into chunks of specified size")
+        it into chunks of specified size. 
+        Directories are chopped recursively.")
         .arg_required_else_help(true)
         .arg(
             Arg::new(options::TARGET)
