@@ -5,10 +5,15 @@ use std::error::Error;
 use std::io::{Read, BufWriter, Write};
 pub use std::path::Path;
 
-pub fn into_tar(path: &str, kilobytes: usize) -> Result<(), Box<dyn Error>> {
+pub mod paths {
+    pub static TEMP: &str = "dirchop_temparchive.tar";
+    pub static TEMP_FIN: &str = "dirchop_tempfinished.tar";
+    pub static CHUNK: &str = "dirchop_chunk";
+}
+
+pub fn into_tar(path: &str, megabytes: usize) -> Result<(), Box<dyn Error>> {
     // temporary archive that is used for splitting into chunks, then deleted.
-    let temp_path = "dirchop_temparchive.tar";
-    let tarfile = File::create(temp_path)?;
+    let tarfile = File::create(paths::TEMP)?;
     let mut builder = tar::Builder::new(tarfile);
     match std::fs::metadata(path)?.is_dir() {
         true => builder.append_dir_all(path, path)?,
@@ -17,10 +22,10 @@ pub fn into_tar(path: &str, kilobytes: usize) -> Result<(), Box<dyn Error>> {
     builder.finish()?;
 
     // builder.finish() closes file; open temparchive again for splitting
-    let mut splitfile = File::open(temp_path)?;
-    let chunksize = kilobytes * 1000;
+    let mut splitfile = File::open(paths::TEMP)?;
+    let chunksize = megabytes * 1000000;
     split(&mut splitfile, chunksize)?;
-    std::fs::remove_file(temp_path)?;
+    std::fs::remove_file(paths::TEMP)?;
     Ok(())
 }
 
@@ -32,7 +37,7 @@ fn split(file: &mut File, chunksize: usize) -> Result<(), Box<dyn Error>> {
     
     // create chunks from temparchive
     for chunk in 0..chunks+1 {
-        let mut writer = BufWriter::new(File::create(format!("dirchop_chunk{}.tar",chunk))?);
+        let mut writer = BufWriter::new(File::create(format!("{}{}.tar",paths::CHUNK,chunk))?);
         let end = if !(chunk == chunks) {chunksize} else {remainder};
         match writer.write_all(&buf[chunk*chunksize..(chunk*chunksize+end)]) {
             Ok(_) => (),
@@ -49,7 +54,8 @@ pub fn glue(d: bool) -> Result<(), Box<dyn Error>> {
     let mut wholebuf = vec![];
     for result in read_dir("./")? {
         match result {
-            Ok(entry) => if entry.file_name().len() >= 14 && &entry.file_name().to_str().unwrap()[0..13] == "dirchop_chunk" {
+            Ok(entry) => if entry.file_name().len() >= 14 
+            && &entry.file_name().to_str().unwrap()[0..13] == paths::CHUNK {
                 // we don't process chunks here because we want to retain their order
                 chunk_amount += 1;
             },
@@ -59,7 +65,7 @@ pub fn glue(d: bool) -> Result<(), Box<dyn Error>> {
     // combine chunks into wholebuffer
     for chunk in 0..chunk_amount {
         let mut partbuf = vec![];
-        let chunkstr = format!("dirchop_chunk{}.tar",chunk);
+        let chunkstr = format!("{}{}.tar",paths::CHUNK,chunk);
         let mut chunkfile = File::open(&chunkstr)?;
         chunkfile.read_to_end(&mut partbuf)?;
         wholebuf.write_all(&partbuf)?;
@@ -68,23 +74,22 @@ pub fn glue(d: bool) -> Result<(), Box<dyn Error>> {
         }
     }
     // write wholebuffer into finished tar file
-    let mut writer = BufWriter::new(File::create("dirchop_tempfinished.tar")?);
+    let mut writer = BufWriter::new(File::create(paths::TEMP_FIN)?);
     writer.write_all(&wholebuf)?;
     into_file()?;
     Ok(())
 }
 
-pub fn into_file() -> Result<(), Box<dyn Error>> {
+fn into_file() -> Result<(), Box<dyn Error>> {
     // create temporary archive object from finished tar file
-    let tempfinishedpath = "dirchop_tempfinished.tar";
-    let tarfile =  File::open(&tempfinishedpath)?;
+    let tarfile =  File::open(paths::TEMP_FIN)?;
     let mut archive = tar::Archive::new(tarfile);
     if !Path::new("./dirchop_target").exists() {
         create_dir("./dirchop_target")?;
     }
     // unpack into target
     archive.unpack("./dirchop_target")?;
-    std::fs::remove_file(&tempfinishedpath)?;
+    std::fs::remove_file(paths::TEMP_FIN)?;
     Ok(())
 }
 
